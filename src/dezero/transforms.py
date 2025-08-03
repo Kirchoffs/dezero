@@ -70,7 +70,11 @@ class ToArray:
             
             # Convert from HWC (Height Width Channel) to CHW (Channel Height Width)
             # HWC is the default format for images in PIL, while CHW is commonly used in PyTorch.
-            img = img.transpose((2, 0, 1))
+            # If grayscale (HW), convert to (1, H, W)
+            if img.ndim == 2:
+                img = img[np.newaxis, :, :]
+            else:
+                img = img.transpose((2, 0, 1))
 
             img = img.astype(self.dtype)
             return img
@@ -81,6 +85,8 @@ class ToArray:
 class ToPIL:
     def __call__(self, array):
         data = array.transpose((1, 2, 0))
+        if data.shape[2] == 1:
+            data = data.squeeze(axis = 2)
         return Image.fromarray(data)
 
 class RandomHorizontalFlip:

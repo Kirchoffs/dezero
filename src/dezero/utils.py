@@ -110,6 +110,17 @@ def sum_to_shape(x, shape):
     return y
 
 
+def max_backward_shape(x, axis):
+    if axis is None:
+        axis = range(x.ndim)
+    elif isinstance(axis, int):
+        axis = (axis,)
+    else:
+        axis = axis
+    
+    return [size if dimension not in axis else 1 for dimension, size in enumerate(x.shape)]
+
+
 def pair(x):
     if isinstance(x, int):
         return (x, x)

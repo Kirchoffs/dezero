@@ -50,3 +50,32 @@ class DataLoader:
 
     def to_gpu(self):
         self.gpu = True
+
+
+class SeqDataLoader(DataLoader):
+    def __init__(self, dataset, batch_size, gpu = False):
+        super().__init__(
+            dataset = dataset, 
+            batch_size = batch_size, 
+            shuffle = False,
+            gpu = gpu
+        )
+
+    def __next__(self):
+        if self.current_iter >= self.max_iter:
+            self.reset()
+            raise StopIteration
+
+        jump = self.data_size // self.batch_size
+        batch_index = [
+            (i * jump + self.current_iter) % self.data_size 
+            for i in range(self.batch_size)
+        ]
+        batch = [self.dataset[i] for i in batch_index]
+
+        xp = cp if self.gpu else np
+        x = xp.array([data[0] for data in batch])
+        t = xp.array([data[1] for data in batch])
+
+        self.iteration += 1
+        return x, t

@@ -1,9 +1,9 @@
 import numpy as np
 import cupy as cp
-import math
-from .core import Variable, Function
+
+from .core import Variable, Function, Config
 from .core import as_array, as_variable
-from .utils import reshape_sum_backward_for_broadcast, sum_to_shape
+from .utils import reshape_sum_backward_for_broadcast, sum_to_shape, max_backward_shape
 from .cuda import get_array_module
 
 
@@ -141,12 +141,18 @@ class Reshape(Function):
 
 
 class Transpose(Function):
+    def __init__(self, axes=None):
+        self.axes = axes
+
     def forward(self, x):
-        xp = get_array_module(x)
-        return xp.transpose(x)
+        return x.transpose(self.axes)
 
     def backward(self, gy):
-        return transpose(gy)
+        if self.axes is None:
+            return transpose(gy)
+
+        inv_axes = np.argsort([ax % gy.ndim for ax in self.axes])
+        return transpose(gy, tuple(inv_axes))
 
 
 class Sum(Function):
@@ -250,6 +256,26 @@ class ReLU(Function):
         return gx
 
 
+class Dropout(Function):
+    def __init__(self, dropout_ratio):
+        self.dropout_ratio = dropout_ratio
+
+    def forward(self, x):
+        if Config.train:
+            xp = get_array_module(x)
+            self.mask = xp.random.rand(*x.shape) > self.dropout_ratio
+            scale = xp.array(1.0 - self.dropout_ratio).astype(x.dtype)
+            return x * self.mask / scale
+        else:
+            return x
+
+    def backward(self, gy):
+        if hasattr(self, 'mask'):
+            return gy * self.mask / (1.0 - self.dropout_ratio)
+        else:
+            return gy
+
+
 class GetItem(Function):
     def __init__(self, slices):
         self.slices = slices
@@ -302,34 +328,7 @@ class Softmax(Function):
         sumdx = gx.sum(axis = self.axis, keepdims = True)
         gx -= y() * sumdx
         return gx
-    
 
-class Clip(Function):
-    def __init__(self, x_min, x_max):
-        self.x_min = x_min
-        self.x_max = x_max
-
-    def forward(self, x):
-        xp = get_array_module(x)
-        return xp.clip(x, self.x_min, self.x_max)
-
-    def backward(self, gy):
-        x, = self.inputs
-        mask = (x.data >= self.x_min) & (x.data <= self.x_max)
-        gx = gy * mask
-        return gx
-    
-
-class Log(Function):
-    def forward(self, x):
-        xp = get_array_module(x)
-        return xp.log(x)
-
-    def backward(self, gy):
-        x, = self.inputs
-        gx = gy / x
-        return gx
-    
 
 class SoftmaxCrossEntropy(Function):
     def forward(self, y_pred, y_true):
@@ -360,6 +359,55 @@ class SoftmaxCrossEntropy(Function):
         gx = gx * (gy / N)
 
         return gx, None
+    
+
+class Clip(Function):
+    def __init__(self, x_min, x_max):
+        self.x_min = x_min
+        self.x_max = x_max
+
+    def forward(self, x):
+        xp = get_array_module(x)
+        return xp.clip(x, self.x_min, self.x_max)
+
+    def backward(self, gy):
+        x, = self.inputs
+        mask = (x.data >= self.x_min) & (x.data <= self.x_max)
+        gx = gy * mask
+        return gx
+    
+
+class Log(Function):
+    def forward(self, x):
+        xp = get_array_module(x)
+        return xp.log(x)
+
+    def backward(self, gy):
+        x, = self.inputs
+        gx = gy / x
+        return gx
+
+
+class Max(Function):
+    def __init__(self, axis = None, keepdims = False):
+        self.axis = axis
+        self.keepdims = keepdims
+
+    def forward(self, x):
+        return x.max(axis = self.axis, keepdims = self.keepdims)
+
+    def backward(self, gy):
+        x = self.inputs[0]
+        y = self.outputs[0]()
+
+        shape = max_backward_shape(x, self.axis)
+
+        y = reshape(y, shape)
+        condition = (x.data == y.data)
+
+        gy = reshape(gy, shape)
+        gy = broadcast_to(gy, condition.shape)
+        return gy * condition
 
 
 def add(x, y):
@@ -426,8 +474,8 @@ def reshape(x, shape):
     return Reshape(shape)(x)
 
 
-def transpose(x):
-    return Transpose()(x)
+def transpose(x, axes=None):
+    return Transpose(axes)(x)
 
 
 def sum(x, axis = None, keepdims = False):
@@ -480,6 +528,10 @@ def relu(x):
     return ReLU()(x)
 
 
+def dropout(x, dropout_ratio=0.5):
+    return Dropout(dropout_ratio)(x)
+
+
 def get_item(x, slices):
     return GetItem(slices)(x)
 
@@ -512,6 +564,10 @@ def clip(x, x_min, x_max):
 
 def log(x):
     return Log()(x)
+
+
+def max(x, axis = None, keepdims = False):
+    return Max(axis, keepdims)(x)
 
 
 def numerical_derivative(f, x, eps = 1e-6):

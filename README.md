@@ -11,6 +11,8 @@
 >> pytest tests/function_test.py
 >> pytest tests/function_test.py::test_add
 >> pytest tests/function_test.py::test_add --trace
+
+>> python manual_tests/mnist_conv_test.py
 ```
 
 Run tests with output
