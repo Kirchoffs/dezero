@@ -74,3 +74,21 @@ With this setup, both of the following commands will work:
 >> cd tests
 >> python simple_test.py
 ```
+
+### CuPy
+#### Install
+```
+>> pip list | grep cupy 
+>> conda list | grep cupy
+```
+
+```
+>> pip uninstall cupy cupy-cuda12x -y
+>> conda uninstall cupy -y 2>/dev/null
+```
+
+```
+>> pip install cupy
+or
+>> pip install cupy-cuda12x 
+```

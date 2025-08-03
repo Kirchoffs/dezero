@@ -6,6 +6,7 @@ if "__file__" in globals():
 
 
 from dezero import no_grad
+from dezero import cuda
 from dezero.datasets import MNIST
 from dezero.data_loaders import DataLoader
 from dezero.models import MLP
@@ -27,6 +28,12 @@ mnist_test_data_loader = DataLoader(mnist_test_dataset, batch_size, shuffle = Fa
 model = MLP([hidden_layer_size, output_layer_size])
 optimizer = SGD().setup(model)
 
+if cuda.gpu_enable:
+    print("Cuda Enabled!")
+    mnist_train_data_loader.to_gpu()
+    mnist_test_data_loader.to_gpu()
+    model.to_gpu()
+
 train_loss_list = []
 train_acc_list = []
 test_loss_list = []
@@ -43,8 +50,8 @@ for epoch in range(max_epochs):
         loss.backward()
         optimizer.update()
 
-        train_loss_sum += loss.data * len(t)
-        train_acc_sum += acc.data * len(t)
+        train_loss_sum += float(loss.data) * len(t)
+        train_acc_sum += float(acc.data) * len(t)
     train_loss_list.append(train_loss_sum / len(mnist_train_dataset))
     train_acc_list.append(train_acc_sum / len(mnist_train_dataset))
 
@@ -56,8 +63,8 @@ for epoch in range(max_epochs):
             loss = softmax_cross_entropy(y, t)
             acc = accuracy(y, t)
 
-            test_loss_sum += loss.data * len(t)
-            test_acc_sum += acc.data * len(t)
+            test_loss_sum += float(loss.data) * len(t)
+            test_acc_sum += float(acc.data) * len(t)
     test_loss_list.append(test_loss_sum / len(mnist_test_dataset))
     test_acc_list.append(test_acc_sum / len(mnist_test_dataset))
 

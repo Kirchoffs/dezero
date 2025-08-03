@@ -15,6 +15,7 @@ class Dataset:
 
     def __getitem__(self, index):
         assert np.isscalar(index)
+
         if self.labels is None:
             return self.data_transform(self.data[index]), None
         return self.data_transform(self.data[index]), self.labels_transform(self.labels[index])

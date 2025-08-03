@@ -145,17 +145,6 @@ def test_sin():
     assert np.allclose(y.data, np.array([1.0])), "Sin function failed"
 
 
-def test_sin_maclaurin():
-    print("\nTest Sin Maclaurin")
-
-    x = Variable(np.array([np.pi / 4]))
-    y_maclaurin = F.sin_maclaurin(x, threshold = 1e-6)
-    y_maclaurin.backward()
-
-    assert np.allclose(y_maclaurin.data, np.array([np.sin(np.pi / 4)]), atol = 1e-5), "Sin Maclaurin function failed"
-    assert np.allclose(x.grad, np.array([np.cos(np.pi / 4)]), atol = 1e-5), "Sin Maclaurin backward failed"
-
-
 def test_reshape():
     print("\nTest Reshape")
 

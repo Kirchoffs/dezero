@@ -1,8 +1,10 @@
 import numpy as np
+import cupy as cp
 import math
 from .core import Variable, Function
 from .core import as_array, as_variable
 from .utils import reshape_sum_backward_for_broadcast, sum_to_shape
+from .cuda import get_array_module
 
 
 class Add(Function):
@@ -51,11 +53,13 @@ class Div(Function):
 
 class Exp(Function):
     def forward(self, x):
-        return np.exp(x)
+        xp = get_array_module(x)
+        return xp.exp(x)
 
     def backward(self, gy):
         x, = self.inputs
-        gx = np.exp(x) * gy
+        xp = get_array_module(x)
+        gx = xp.exp(x) * gy
         return gx
 
 
@@ -93,7 +97,8 @@ class Neg(Function):
 
 class Sin(Function):
     def forward(self, x):
-        return np.sin(x)
+        xp = get_array_module(x)
+        return xp.sin(x)
 
     def backward(self, gy):
         x, = self.inputs
@@ -103,7 +108,8 @@ class Sin(Function):
 
 class Cos(Function):
     def forward(self, x):
-        return np.cos(x)
+        xp = get_array_module(x)
+        return xp.cos(x)
 
     def backward(self, gy):
         x, = self.inputs
@@ -113,7 +119,8 @@ class Cos(Function):
 
 class Tanh(Function):
     def forward(self, x):
-        return np.tanh(x)
+        xp = get_array_module(x)
+        return xp.tanh(x)
 
     def backward(self, gy):
         y, = self.outputs
@@ -135,7 +142,8 @@ class Reshape(Function):
 
 class Transpose(Function):
     def forward(self, x):
-        return np.transpose(x)
+        xp = get_array_module(x)
+        return xp.transpose(x)
 
     def backward(self, gy):
         return transpose(gy)
@@ -161,7 +169,8 @@ class BroadcastTo(Function):
 
     def forward(self, x):
         self.x_shape = x.shape
-        return np.broadcast_to(x, self.shape)
+        xp = get_array_module(x)
+        return xp.broadcast_to(x, self.shape)
 
     def backward(self, gy):
         return sum_to(gy, self.x_shape)
@@ -193,7 +202,8 @@ class MatMul(Function):
 class MeanSquareError(Function):
     def forward(self, y_pred, y_true):
         diff = y_pred - y_true
-        return np.sum(diff ** 2) / len(diff)
+        xp = get_array_module(diff)
+        return xp.sum(diff ** 2) / len(diff)
 
     def backward(self, gy):
         y_pred, y_true = self.inputs
@@ -219,7 +229,8 @@ class Linear(Function):
 
 class Sigmoid(Function):
     def forward(self, x):
-        return 1 / (1 + np.exp(-x))
+        xp = get_array_module(x)
+        return 1 / (1 + xp.exp(-x))
 
     def backward(self, gy):
         y, = self.outputs
@@ -229,7 +240,8 @@ class Sigmoid(Function):
 
 class ReLU(Function):
     def forward(self, x):
-        return np.maximum(0, x)
+        xp = get_array_module(x)
+        return xp.maximum(0, x)
 
     def backward(self, gy):
         x, = self.inputs
@@ -257,9 +269,13 @@ class GetItemGrad(Function):
         self.in_shape = in_shape
 
     def forward(self, gy):
-        gx = np.zeros(self.in_shape, dtype = gy.dtype)
+        xp = get_array_module(gy)
+        gx = xp.zeros(self.in_shape, dtype = gy.dtype)
 
-        np.add.at(gx, self.slices, gy)
+        if xp is np:
+            np.add.at(gx, self.slices, gy)
+        else:
+            cp.scatter_add(gx, self.slices, gy)
         
         return gx
 
@@ -272,9 +288,12 @@ class Softmax(Function):
         self.axis = axis
 
     def forward(self, x):
+        xp = get_array_module(x)
+
         x = x - x.max(axis = self.axis, keepdims = True)
-        y = np.exp(x)
+        y = xp.exp(x)
         y /= y.sum(axis = self.axis, keepdims = True)
+
         return y
 
     def backward(self, gy):
@@ -291,7 +310,8 @@ class Clip(Function):
         self.x_max = x_max
 
     def forward(self, x):
-        return np.clip(x, self.x_min, self.x_max)
+        xp = get_array_module(x)
+        return xp.clip(x, self.x_min, self.x_max)
 
     def backward(self, gy):
         x, = self.inputs
@@ -302,7 +322,8 @@ class Clip(Function):
 
 class Log(Function):
     def forward(self, x):
-        return np.log(x)
+        xp = get_array_module(x)
+        return xp.log(x)
 
     def backward(self, gy):
         x, = self.inputs
@@ -315,55 +336,59 @@ class SoftmaxCrossEntropy(Function):
         N = y_pred.shape[0]
 
         x = y_pred - y_pred.max(axis = 1, keepdims = True)
-        lse = np.log(np.sum(np.exp(x), axis = 1)) # Log-Sum-Exp (LSE)
-        log_p = x - lse[:, np.newaxis]
-        p = np.exp(log_p)
+        xp = get_array_module(x)
+        lse = xp.log(xp.sum(xp.exp(x), axis = 1)) # Log-Sum-Exp (LSE)
+        log_p = x - lse[:, xp.newaxis]
+        p = xp.exp(log_p)
 
         self.p = p
 
-        log_p_true = log_p[np.arange(N), y_true.astype('int32')]
+        log_p_true = log_p[xp.arange(N), y_true.astype('int32')]
         loss = -log_p_true.mean()
         return loss
 
     def backward(self, gy):
+        xp = get_array_module(gy)
+
         _, y_true = self.inputs
 
         p = self.p 
         N = p.shape[0]
 
         gx = p.copy()
-        gx[np.arange(N), y_true.data.astype('int32')] -= 1
-        gx *= gy / N
+        gx[xp.arange(N), y_true.data.astype('int32')] -= 1
+        gx = gx * (gy / N)
+
         return gx, None
 
 
 def add(x, y):
-    y = as_array(y)
+    y = as_array(y, get_array_module(x))
     return Add()(x, y)
 
 
 def sub(x, y):
-    y = as_array(y)
+    y = as_array(y, get_array_module(x))
     return Sub()(x, y)
 
 
 def rsub(x, y):
-    y = as_array(y)
+    y = as_array(y, get_array_module(x))
     return Sub()(y, x)
 
 
 def mul(x, y):
-    y = as_array(y)
+    y = as_array(y, get_array_module(x))
     return Mul()(x, y)
 
 
 def div(x, y):
-    y = as_array(y)
+    y = as_array(y, get_array_module(x))
     return Div()(x, y)
 
 
 def rdiv(x, y):
-    y = as_array(y)
+    y = as_array(y, get_array_module(x))
     return Div()(y, x)
 
 
@@ -481,35 +506,12 @@ def softmax_cross_entropy(y_pred, y_true):
     return SoftmaxCrossEntropy()(y_pred, y_true)
 
 
-def softmax_cross_entropy_simple(y_pred, y_true): 
-    y_pred, y_true = as_variable(y_pred), as_variable(y_true)
-    N = y_pred.shape[0]
-
-    p = softmax(y_pred)
-    p = clip(p, 1e-15, 1.0)
-    log_p = log(p)
-    tlog_p = log_p[np.arrange(N), y_true.data]
-    y = -tlog_p.sum() / N
-    return y
-
-
 def clip(x, x_min, x_max):
     return Clip(x_min, x_max)(x)
 
 
 def log(x):
     return Log()(x)
-
-
-def sin_maclaurin(x, threshold = 1e-5):
-    y = 0
-    for i in range(999):
-        coeff = (-1) ** i / math.factorial(2 * i + 1)
-        term = coeff * x ** (2 * i + 1)
-        y = y + term
-        if np.all(np.abs(term.data) < threshold):
-            break
-    return y
 
 
 def numerical_derivative(f, x, eps = 1e-6):
@@ -520,8 +522,9 @@ def numerical_derivative(f, x, eps = 1e-6):
 
 def accuracy(y_pred, y_true):
     y_pred, y_true = as_variable(y_pred), as_variable(y_true)
-    y_pred_label = np.argmax(y_pred.data, axis = 1).reshape(y_true.shape)
-    acc = np.mean(y_pred_label == y_true.data)
+    y_pred_label = y_pred.data.argmax(axis = 1).reshape(y_true.shape)
+    result = (y_pred_label == y_true.data)
+    acc = result.mean()
     return Variable(as_array(acc))
 
 

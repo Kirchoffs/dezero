@@ -2,6 +2,14 @@ import numpy as np
 import contextlib
 import weakref
 import heapq
+from . import cuda
+
+
+try:
+    import cupy as cp
+    array_types = (np.ndarray, cp.ndarray)
+except ImportError:
+    array_types = (np.ndarray)
 
 
 class Config:
@@ -26,7 +34,7 @@ class Variable:
     __array_priority__ = 256
 
     def __init__(self, data, name = None):
-        if data is not None and not isinstance(data, np.ndarray):
+        if data is not None and not isinstance(data, array_types):
             raise TypeError("{} is not supported".format(type(data)))
         
         self.data = data
@@ -74,7 +82,8 @@ class Variable:
             raise RuntimeError("Backpropagation is disabled. Set 'Config.enable_backprop' to True to enable it.")
 
         if self.grad is None:
-            self.grad = Variable(np.ones_like(self.data))
+            xp = cuda.get_array_module(self.data)
+            self.grad = Variable(xp.ones_like(self.data))
 
         funcs_queue = []
         funcs_seen = set()
@@ -133,6 +142,14 @@ class Variable:
         content = str(self.data).replace('\n', '\n' + ' ' * len("Variable("))
         return f"Variable(" + content + ")"
 
+    def to_cpu(self):
+        if self.data is not None:
+            self.data = cuda.as_numpy(self.data)
+
+    def to_gpu(self):
+        if self.data is not None:
+            self.data = cuda.as_cupy(self.data)
+
 
 def as_variable(obj):
     if not isinstance(obj, Variable):
@@ -140,9 +157,9 @@ def as_variable(obj):
     return obj
 
 
-def as_array(x):
-    if np.isscalar(x):
-        return np.array(x)
+def as_array(x, array_module = np):
+    if array_module.isscalar(x):
+        return array_module.array(x)
     return x
 
 
