@@ -116,6 +116,10 @@ class Variable:
     def transpose(self):
         from .functions import transpose
         return transpose(self)
+    
+    def __getitem__(self, slices):
+        from .functions import get_item
+        return get_item(self, slices)
 
     def __array__(self, dtype = None):
         return self.data

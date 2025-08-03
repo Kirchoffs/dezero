@@ -238,6 +238,105 @@ class ReLU(Function):
         return gx
 
 
+class GetItem(Function):
+    def __init__(self, slices):
+        self.slices = slices
+
+    def forward(self, x):
+        return x[self.slices]
+
+    def backward(self, gy):
+        x, = self.inputs
+        f = GetItemGrad(self.slices, x.shape)
+        return f(gy)
+    
+
+class GetItemGrad(Function):
+    def __init__(self, slices, in_shape):
+        self.slices = slices
+        self.in_shape = in_shape
+
+    def forward(self, gy):
+        gx = np.zeros(self.in_shape, dtype = gy.dtype)
+
+        np.add.at(gx, self.slices, gy)
+        
+        return gx
+
+    def backward(self, ggx):
+        return get_item(ggx, self.slices)
+    
+
+class Softmax(Function):
+    def __init__(self, axis = 1):
+        self.axis = axis
+
+    def forward(self, x):
+        x = x - x.max(axis = self.axis, keepdims = True)
+        y = np.exp(x)
+        y /= y.sum(axis = self.axis, keepdims = True)
+        return y
+
+    def backward(self, gy):
+        y, = self.outputs
+        gx = y() * gy
+        sumdx = gx.sum(axis = self.axis, keepdims = True)
+        gx -= y() * sumdx
+        return gx
+    
+
+class Clip(Function):
+    def __init__(self, x_min, x_max):
+        self.x_min = x_min
+        self.x_max = x_max
+
+    def forward(self, x):
+        return np.clip(x, self.x_min, self.x_max)
+
+    def backward(self, gy):
+        x, = self.inputs
+        mask = (x.data >= self.x_min) & (x.data <= self.x_max)
+        gx = gy * mask
+        return gx
+    
+
+class Log(Function):
+    def forward(self, x):
+        return np.log(x)
+
+    def backward(self, gy):
+        x, = self.inputs
+        gx = gy / x
+        return gx
+    
+
+class SoftmaxCrossEntropy(Function):
+    def forward(self, y_pred, y_true):
+        N = y_pred.shape[0]
+
+        x = y_pred - y_pred.max(axis = 1, keepdims = True)
+        lse = np.log(np.sum(np.exp(x), axis = 1)) # Log-Sum-Exp (LSE)
+        log_p = x - lse[:, np.newaxis]
+        p = np.exp(log_p)
+
+        self.p = p
+
+        log_p_true = log_p[np.arange(N), y_true.astype('int32')]
+        loss = -log_p_true.mean()
+        return loss
+
+    def backward(self, gy):
+        _, y_true = self.inputs
+
+        p = self.p 
+        N = p.shape[0]
+
+        gx = p.copy()
+        gx[np.arange(N), y_true.data.astype('int32')] -= 1
+        gx *= gy / N
+        return gx, None
+
+
 def add(x, y):
     y = as_array(y)
     return Add()(x, y)
@@ -356,6 +455,52 @@ def relu(x):
     return ReLU()(x)
 
 
+def get_item(x, slices):
+    return GetItem(slices)(x)
+
+
+def softmax(x, axis = 1):
+    return Softmax(axis)(x)
+
+
+def softmax_simple(x, axis = 1):
+    x = as_variable(x)
+    y = exp(x)
+    sum_y = sum(y, axis = axis, keepdims = True)
+    return y / sum_y
+
+
+def softmax1d(x):
+    x = as_variable(x)
+    y = exp(x)
+    sum_y = sum(y)
+    return y / sum_y
+
+
+def softmax_cross_entropy(y_pred, y_true):
+    return SoftmaxCrossEntropy()(y_pred, y_true)
+
+
+def softmax_cross_entropy_simple(y_pred, y_true): 
+    y_pred, y_true = as_variable(y_pred), as_variable(y_true)
+    N = y_pred.shape[0]
+
+    p = softmax(y_pred)
+    p = clip(p, 1e-15, 1.0)
+    log_p = log(p)
+    tlog_p = log_p[np.arrange(N), y_true.data]
+    y = -tlog_p.sum() / N
+    return y
+
+
+def clip(x, x_min, x_max):
+    return Clip(x_min, x_max)(x)
+
+
+def log(x):
+    return Log()(x)
+
+
 def sin_maclaurin(x, threshold = 1e-5):
     y = 0
     for i in range(999):
@@ -371,6 +516,13 @@ def numerical_derivative(f, x, eps = 1e-6):
     x_minus = Variable(x.data - eps)
     x_plus = Variable(x.data + eps)
     return (f(x_plus).data - f(x_minus).data) / (2 * eps)
+
+
+def accuracy(y_pred, y_true):
+    y_pred, y_true = as_variable(y_pred), as_variable(y_true)
+    y_pred_label = np.argmax(y_pred.data, axis = 1).reshape(y_true.shape)
+    acc = np.mean(y_pred_label == y_true.data)
+    return Variable(as_array(acc))
 
 
 def setup_variable():

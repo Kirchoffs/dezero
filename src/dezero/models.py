@@ -4,8 +4,10 @@ from .functions import relu
 
 
 class Model(Layer):
-    def plot(self, *inputs, to_file = "graph.png"):
+    def plot(self, *inputs, to_file = "graph.png", clear_grad = True):
         y = self.forward(*inputs)
+        if clear_grad:
+            self.clear_grad()
         return plot_dot_graph(y, True, to_file)
     
 

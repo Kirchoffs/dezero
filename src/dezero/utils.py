@@ -1,6 +1,9 @@
 import os
 import subprocess
 import platform
+import urllib.request
+import gzip
+import numpy as np
 
 
 def _dot_var(v, verbose = False):
@@ -105,3 +108,29 @@ def sum_to_shape(x, shape):
         y = y.squeeze(lead_axis)
     
     return y
+
+
+def pair(x):
+    if isinstance(x, int):
+        return (x, x)
+    elif isinstance(x, tuple):
+        assert len(x) == 2
+        return x
+    else:
+        raise ValueError("Invalid input: {}".format(x))
+
+
+def download_and_parse(url, filename, save_dir, offset):
+    path = os.path.join(save_dir, filename)
+    
+    if not os.path.exists(path):
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        print(f"Downloading {filename}...")
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        req = urllib.request.Request(url + filename, headers = headers)
+        with urllib.request.urlopen(req) as response, open(path, 'wb') as f:
+            f.write(response.read())
+
+    with gzip.open(path, 'rb') as f:
+        return np.frombuffer(f.read(), np.uint8, offset = offset)

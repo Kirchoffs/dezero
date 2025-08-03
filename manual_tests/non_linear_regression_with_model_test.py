@@ -8,7 +8,7 @@ if "__file__" in globals():
 import numpy as np
 import dezero.functions as F
 import dezero.layers as L
-from dezero import Model
+import dezero.models as M
 import matplotlib.pyplot as plt
 
 
@@ -19,7 +19,7 @@ y = np.sin(2 * np.pi * x) + 0.1 * np.random.rand(128, 1)
 
 hidden_size = 12
 
-class TwoLayerNet(Model):
+class TwoLayerNet(M.Model):
     def __init__(self, hidden_size, out_size):
         super().__init__()
         self.l1 = L.Linear(out_size = hidden_size)
@@ -54,6 +54,6 @@ y_test_pred = model(x_test)
 plt.figure(figsize = (8, 6))
 plt.plot(x_test, y_test_pred.data, color = "red", label = "Predicted")
 plt.scatter(x, y, label = "Actual")
-plt.title("Non-linear Regression Model with Model")
+plt.title("Non-linear Regression Model with 'Model'")
 plt.legend()
 plt.show()

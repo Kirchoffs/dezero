@@ -7,7 +7,6 @@ if "__file__" in globals():
 
 import numpy as np
 import dezero.functions as F
-import dezero.layers as L
 import dezero.models as M
 import matplotlib.pyplot as plt
 
@@ -43,6 +42,6 @@ y_test_pred = model(x_test)
 plt.figure(figsize = (8, 6))
 plt.plot(x_test, y_test_pred.data, color = "red", label = "Predicted")
 plt.scatter(x, y, label = "Actual")
-plt.title("Non-linear Regression Model with MLP")
+plt.title("Non-linear Regression Model with 'MLP'")
 plt.legend()
 plt.show()

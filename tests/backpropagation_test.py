@@ -76,6 +76,7 @@ def test_backpropagation_6():
     x = Variable(np.array([2.0]))
     a = F.square(x)
     y = F.add(F.square(a), F.square(a))
+
     y.backward()
 
     print(y.data)
