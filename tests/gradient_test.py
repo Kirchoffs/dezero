@@ -21,15 +21,15 @@ def test_add_derivative_same_variable():
     y = add(x, x)
     y.backward(retain_grad = True)
 
-    assert y.grad == 1, "Add derivative same variable test failed for y variable"
-    assert x.grad == 2, "Add derivative same variable test failed for x variable"
+    assert y.grad.data == 1, "Add derivative same variable test failed for y variable"
+    assert x.grad.data == 2, "Add derivative same variable test failed for x variable"
 
     x.clean_grad()
     y = add(add(x, x), x)
     y.backward(retain_grad = True)
 
-    assert y.grad == 1, "Add derivative same variable test failed for y variable"
-    assert x.grad == 3, "Add derivative same variable test failed for x variable"
+    assert y.grad.data == 1, "Add derivative same variable test failed for y variable"
+    assert x.grad.data == 3, "Add derivative same variable test failed for x variable"
 
 
 def test_retain_grad_false():
@@ -42,5 +42,27 @@ def test_retain_grad_false():
     assert d.grad is None, "Retain grad false test failed for d variable"
     assert c.grad is None, "Retain grad false test failed for c variable"
 
-    assert a.grad == 2, "Retain grad false test failed for a variable"
-    assert b.grad == 1, "Retain grad false test failed for b variable"
+    assert a.grad.data == 2, "Retain grad false test failed for a variable"
+    assert b.grad.data == 1, "Retain grad false test failed for b variable"
+
+
+def test_newton_optimization():
+    def f(x):
+        return x ** 4 - 2 * x ** 2
+
+    x = Variable(np.array(2.0))
+    iters = 10
+    for i in range(iters):
+        print(i, x)
+
+        y = f(x)
+        x.clean_grad()
+
+        y.backward(create_graph = True)
+        gx = x.grad
+        x.clean_grad()
+
+        gx.backward()
+        g2x = x.grad
+
+        x.data -= gx.data / g2x.data

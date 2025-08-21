@@ -27,9 +27,8 @@ class Variable:
     __array_priority__ = 256
 
     def __init__(self, data, name = None):
-        if data is not None:
-            if not isinstance(data, np.ndarray):
-                raise TypeError("{} is not supported".format(type(data)))
+        if data is None or not isinstance(data, np.ndarray):
+            raise TypeError("{} is not supported".format(type(data)))
         
         self.data = data
         self.name = name
@@ -67,41 +66,45 @@ class Variable:
     #         x.grad = f.backward(self.grad)
     #         x.backward()
 
-    def backward(self, retain_grad = False):
+    def backward(self, retain_grad = False, create_graph = False):
         if not Config.enable_backprop:
             raise RuntimeError("Backpropagation is disabled. Set 'Config.enable_backprop' to True to enable it.")
 
         if self.grad is None:
-            self.grad = np.ones_like(self.data)
+            self.grad = Variable(np.ones_like(self.data))
 
         funcs_queue = []
         funcs_seen = set()
-        
+
         def add_func(f):
             if f is not None and f not in funcs_seen:
                 heapq.heappush(funcs_queue, f)
                 funcs_seen.add(f)
-        
+            
         add_func(self.creator)
         while funcs_queue:
             f = heapq.heappop(funcs_queue)
-            
             gys = tuple(output().grad for output in f.outputs)
-            gxs = f.backward(*gys)
-            if not isinstance(gxs, tuple):
-                gxs = (gxs,)
 
-            for x, gx in zip(f.inputs, gxs):
-                if x.grad is None:
-                    x.grad = gx
-                else:
-                    x.grad = x.grad + gx
+            with using_config("enable_backprop", create_graph):
+                gxs = f.backward(*gys)
+                if not isinstance(gxs, tuple):
+                    gxs = (gxs,)
 
-                add_func(x.creator)
+                for x, gx in zip(f.inputs, gxs):
+                    if x.grad is None:
+                        x.grad = gx
+                    else:
+                        x.grad = x.grad + gx
+                    
+                    add_func(x.creator)
+                
+                if not retain_grad:
+                    for y in f.outputs:
+                        y().grad = None
 
-            if not retain_grad:
-                for y in f.outputs:
-                    y().grad = None
+    def __array__(self, dtype = None):
+        return self.data
 
     def __len__(self):
         return len(self.data)
@@ -109,7 +112,6 @@ class Variable:
     def __repr__(self):
         if self.data is None:
             return "Variable(None)"
-        
         content = str(self.data).replace('\n', '\n' + ' ' * len("Variable("))
         return f"Variable(" + content + ")"
 
@@ -133,7 +135,6 @@ def as_variable(obj):
     return obj
 
 
-# Zero-dimensional arrays like 'np.array(3.14)' are treated as scalars.
 def as_array(x):
     if np.isscalar(x):
         return np.array(x)
@@ -160,8 +161,8 @@ class Function:
             for output in outputs:
                 output.set_creator(self)
 
-            self.inputs = inputs
-            self.outputs = tuple(weakref.ref(output) for output in outputs)
+        self.inputs = inputs
+        self.outputs = tuple(weakref.ref(output) for output in outputs)
 
         return outputs if len(outputs) > 1 else outputs[0]
     
@@ -196,7 +197,7 @@ class Mul(Function):
         return x_left * x_right
     
     def backward(self, gy):
-        x_left, x_right = self.inputs[0].data, self.inputs[1].data
+        x_left, x_right = self.inputs
         gx_left = gy * x_right
         gx_right = gy * x_left
         return gx_left, gx_right
@@ -207,7 +208,7 @@ class Div(Function):
         return x_left / x_right
     
     def backward(self, gy):
-        x_left, x_right = self.inputs[0].data, self.inputs[1].data
+        x_left, x_right = self.inputs
         gx_left = gy / x_right
         gx_right = -gy * x_left / (x_right ** 2)
         return gx_left, gx_right
@@ -218,10 +219,10 @@ class Exp(Function):
         return np.exp(x)
 
     def backward(self, gy):
-        x = self.inputs[0].data
+        x, = self.inputs
         gx = np.exp(x) * gy
         return gx
-    
+
 
 class Pow(Function):
     def __init__(self, c):
@@ -231,7 +232,7 @@ class Pow(Function):
         return x ** self.c
 
     def backward(self, gy):
-        x = self.inputs[0].data
+        x, = self.inputs
         c = self.c
         gx = c * (x ** (c - 1)) * gy
         return gx
@@ -242,7 +243,7 @@ class Square(Function):
         return x ** 2
 
     def backward(self, gy):
-        x = self.inputs[0].data
+        x, = self.inputs
         gx = 2 * x * gy
         return gx
     
@@ -260,8 +261,28 @@ class Sin(Function):
         return np.sin(x)
 
     def backward(self, gy):
-        x = self.inputs[0].data
-        gx = gy * np.cos(x)
+        x, = self.inputs
+        gx = gy * cos(x)
+        return gx
+
+
+class Cos(Function):
+    def forward(self, x):
+        return np.cos(x)
+
+    def backward(self, gy):
+        x, = self.inputs
+        gx = -gy * sin(x)
+        return gx
+    
+
+class Tanh(Function):
+    def forward(self, x):
+        return np.tanh(x)
+
+    def backward(self, gy):
+        y, = self.outputs
+        gx = gy * (1 - y() ** 2)
         return gx
 
 
@@ -313,6 +334,14 @@ def neg(x):
 
 def sin(x):
     return Sin()(x)
+
+
+def cos(x):
+    return Cos()(x)
+
+
+def tanh(x):
+    return Tanh()(x)
 
 
 def sin_maclaurin(x, threshold = 1e-5):

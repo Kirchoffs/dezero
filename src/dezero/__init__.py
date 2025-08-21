@@ -1,4 +1,4 @@
-is_core_basic = True
+is_core_basic = False
 
 if is_core_basic:
     from .core_basic import Variable
@@ -10,7 +10,14 @@ if is_core_basic:
     from .core_basic import using_config, no_grad
     from .core_basic import numerical_derivative
 else:
-    pass
+    from .core import Variable
+    from .core import setup_variable
+    from .core import Function
+    from .core import Add, Sub, Mul, Div, Exp, Pow, Square, Neg, Sin, Cos, Tanh
+    from .core import add, sub, rsub, mul, div, rdiv, exp, pow, square, neg, sin, cos, tanh, sin_maclaurin
+    from .core import Config
+    from .core import using_config, no_grad
+    from .core import numerical_derivative
 
 from .utils import plot_dot_graph
 
