@@ -13,8 +13,8 @@ def test_sphere():
     z = sphere(x, y)
     z.backward()
 
-    assert x.grad == 2.0
-    assert y.grad == 6.0
+    assert x.grad.data == 2.0
+    assert y.grad.data == 6.0
 
 
 def test_matyas():
@@ -26,8 +26,8 @@ def test_matyas():
     z = matyas(x, y)
     z.backward()
 
-    assert math.isclose(x.grad, 0.04, rel_tol = 1e-9)
-    assert math.isclose(y.grad, 0.04, rel_tol = 1e-9)
+    assert math.isclose(x.grad.data, 0.04, rel_tol = 1e-9)
+    assert math.isclose(y.grad.data, 0.04, rel_tol = 1e-9)
 
 
 def test_goldstein_price():
@@ -40,8 +40,8 @@ def test_goldstein_price():
     z = goldstein_price(x, y)
     z.backward()
 
-    assert math.isclose(x.grad, -5376.0, rel_tol = 1e-9)
-    assert math.isclose(y.grad, 8064.0, rel_tol = 1e-9)
+    assert math.isclose(x.grad.data, -5376.0, rel_tol = 1e-9)
+    assert math.isclose(y.grad.data, 8064.0, rel_tol = 1e-9)
 
 
 def test_rosenbrock():
@@ -56,5 +56,5 @@ def test_rosenbrock():
     y = rosenbrock(x0, x1)
     y.backward()
 
-    assert math.isclose(x0.grad, -2.0, rel_tol = 1e-9)
-    assert math.isclose(x1.grad, 400.0, rel_tol = 1e-9)
+    assert math.isclose(x0.grad.data, -2.0, rel_tol = 1e-9)
+    assert math.isclose(x1.grad.data, 400.0, rel_tol = 1e-9)
