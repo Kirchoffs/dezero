@@ -1,7 +1,6 @@
 import numpy as np
 import contextlib
 import weakref
-import math
 import heapq
 
 
@@ -27,7 +26,7 @@ class Variable:
     __array_priority__ = 256
 
     def __init__(self, data, name = None):
-        if data is None or not isinstance(data, np.ndarray):
+        if data is not None and not isinstance(data, np.ndarray):
             raise TypeError("{} is not supported".format(type(data)))
         
         self.data = data
@@ -51,6 +50,10 @@ class Variable:
     @property
     def dtype(self):
         return self.data.dtype
+    
+    @property
+    def T(self):
+        return self.transpose()
 
     def set_creator(self, func):
         self.creator = func
@@ -103,6 +106,17 @@ class Variable:
                     for y in f.outputs:
                         y().grad = None
 
+    def reshape(self, *shape):
+        if len(shape) == 1 and isinstance(shape[0], (tuple, list)):
+            shape = shape[0]
+
+        from .functions import reshape
+        return reshape(self, shape)
+
+    def transpose(self):
+        from .functions import transpose
+        return transpose(self)
+
     def __array__(self, dtype = None):
         return self.data
 
@@ -114,19 +128,6 @@ class Variable:
             return "Variable(None)"
         content = str(self.data).replace('\n', '\n' + ' ' * len("Variable("))
         return f"Variable(" + content + ")"
-
-
-def setup_variable():
-    Variable.__add__ = add
-    Variable.__radd__ = add
-    Variable.__sub__ = sub
-    Variable.__rsub__ = rsub
-    Variable.__mul__ = mul
-    Variable.__rmul__ = mul
-    Variable.__truediv__ = div
-    Variable.__rtruediv__ = rdiv
-    Variable.__pow__ = pow
-    Variable.__neg__ = neg
 
 
 def as_variable(obj):
@@ -167,195 +168,16 @@ class Function:
         return outputs if len(outputs) > 1 else outputs[0]
     
     def forward(self, x):
+        # forward operations are based on ndarray
         raise NotImplementedError("Forward method must be implemented by subclasses")
 
     def backward(self, gy):
+        # backward operations are based on Variable
         raise NotImplementedError("Backward method must be implemented by subclasses")
     
     def __lt__(self, other):
         return self.generation > other.generation
 
 
-class Add(Function):
-    def forward(self, x_left, x_right):
-        return x_left + x_right
-
-    def backward(self, gy):
-        return gy, gy
-
-
-class Sub(Function):
-    def forward(self, x_left, x_right):
-        return x_left - x_right
-
-    def backward(self, gy):
-        return gy, -gy
-    
-
-class Mul(Function):
-    def forward(self, x_left, x_right):
-        return x_left * x_right
-    
-    def backward(self, gy):
-        x_left, x_right = self.inputs
-        gx_left = gy * x_right
-        gx_right = gy * x_left
-        return gx_left, gx_right
-
-
-class Div(Function):
-    def forward(self, x_left, x_right):
-        return x_left / x_right
-    
-    def backward(self, gy):
-        x_left, x_right = self.inputs
-        gx_left = gy / x_right
-        gx_right = -gy * x_left / (x_right ** 2)
-        return gx_left, gx_right
-
-
-class Exp(Function):
-    def forward(self, x):
-        return np.exp(x)
-
-    def backward(self, gy):
-        x, = self.inputs
-        gx = np.exp(x) * gy
-        return gx
-
-
-class Pow(Function):
-    def __init__(self, c):
-        self.c = c
-
-    def forward(self, x):
-        return x ** self.c
-
-    def backward(self, gy):
-        x, = self.inputs
-        c = self.c
-        gx = c * (x ** (c - 1)) * gy
-        return gx
-
-
-class Square(Function):
-    def forward(self, x):
-        return x ** 2
-
-    def backward(self, gy):
-        x, = self.inputs
-        gx = 2 * x * gy
-        return gx
-    
-
-class Neg(Function):
-    def forward(self, x):
-        return -x
-
-    def backward(self, gy):
-        return -gy
-
-
-class Sin(Function):
-    def forward(self, x):
-        return np.sin(x)
-
-    def backward(self, gy):
-        x, = self.inputs
-        gx = gy * cos(x)
-        return gx
-
-
-class Cos(Function):
-    def forward(self, x):
-        return np.cos(x)
-
-    def backward(self, gy):
-        x, = self.inputs
-        gx = -gy * sin(x)
-        return gx
-    
-
-class Tanh(Function):
-    def forward(self, x):
-        return np.tanh(x)
-
-    def backward(self, gy):
-        y, = self.outputs
-        gx = gy * (1 - y() ** 2)
-        return gx
-
-
-def add(x, y):
-    y = as_array(y)
-    return Add()(x, y)
-
-
-def sub(x, y):
-    y = as_array(y)
-    return Sub()(x, y)
-
-
-def rsub(x, y):
-    y = as_array(y)
-    return Sub()(y, x)
-
-
-def mul(x, y):
-    y = as_array(y)
-    return Mul()(x, y)
-
-
-def div(x, y):
-    y = as_array(y)
-    return Div()(x, y)
-
-
-def rdiv(x, y):
-    y = as_array(y)
-    return Div()(y, x)
-
-
-def exp(x):
-    return Exp()(x)
-
-
-def pow(x, c):
-    return Pow(c)(x)
-
-
-def square(x):
-    return Square()(x)
-
-
-def neg(x):
-    return Neg()(x)
-
-
-def sin(x):
-    return Sin()(x)
-
-
-def cos(x):
-    return Cos()(x)
-
-
-def tanh(x):
-    return Tanh()(x)
-
-
-def sin_maclaurin(x, threshold = 1e-5):
-    y = 0
-    for i in range(999):
-        coeff = (-1) ** i / math.factorial(2 * i + 1)
-        term = coeff * x ** (2 * i + 1)
-        y = y + term
-        if np.all(np.abs(term.data) < threshold):
-            break
-    return y
-
-
-def numerical_derivative(f, x, eps=1e-6):
-    x_minus = Variable(x.data - eps)
-    x_plus = Variable(x.data + eps)
-    return (f(x_plus).data - f(x_minus).data) / (2 * eps)
+class Parameter(Variable):
+    pass

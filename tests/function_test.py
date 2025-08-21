@@ -1,6 +1,6 @@
 import numpy as np
 
-from dezero import sin, sin_maclaurin
+import dezero.functions as F
 from dezero import Variable
 from dezero import Add, Square
 
@@ -140,7 +140,7 @@ def test_sin():
     print("\nTest Sin")
 
     x = Variable(np.array([np.pi / 2]))
-    y = sin(x)
+    y = F.sin(x)
 
     assert np.allclose(y.data, np.array([1.0])), "Sin function failed"
 
@@ -149,8 +149,74 @@ def test_sin_maclaurin():
     print("\nTest Sin Maclaurin")
 
     x = Variable(np.array([np.pi / 4]))
-    y_maclaurin = sin_maclaurin(x, threshold = 1e-6)
+    y_maclaurin = F.sin_maclaurin(x, threshold = 1e-6)
     y_maclaurin.backward()
 
     assert np.allclose(y_maclaurin.data, np.array([np.sin(np.pi / 4)]), atol = 1e-5), "Sin Maclaurin function failed"
     assert np.allclose(x.grad, np.array([np.cos(np.pi / 4)]), atol = 1e-5), "Sin Maclaurin backward failed"
+
+
+def test_reshape():
+    print("\nTest Reshape")
+
+    x = Variable(np.array([[1, 2, 3], [4, 5, 6]]))
+    y = F.reshape(x, (6,))
+    y.backward(retain_grad = True)
+    
+    assert np.allclose(x.grad, np.array([[1, 1, 1], [1, 1, 1]])), "Reshape backward failed"
+
+
+def test_transpose():
+    print("\nTest Transpose")
+
+    x = Variable(np.array([[1, 2, 3], [4, 5, 6]]))
+    y = F.transpose(x)
+    y.backward(retain_grad = True)
+
+    assert np.allclose(x.grad, np.array([[1, 1, 1], [1, 1, 1]])), "Transpose backward failed"
+
+
+def test_sum():
+    print("\nTest Sum")
+
+    x = Variable(np.array([1, 2, 3, 4, 5, 6]))
+    y = F.sum(x)
+    y.backward()
+
+    assert np.allclose(y.data, np.array(21)), "Sum function 1 failed"
+    assert np.allclose(x.grad, np.array([1, 1, 1, 1, 1, 1])), "Sum backward 1 failed"
+
+    x = Variable(np.array([[1, 2, 3], [4, 5, 6]]))
+    y = F.sum(x)
+    y.backward()
+
+    assert np.allclose(y.data, np.array(21)), "Sum function 2 failed"
+    assert np.allclose(x.grad, np.array([[1, 1, 1], [1, 1, 1]])), "Sum backward 2 failed"
+
+
+def test_broadcast():
+    print("\nTest Broadcast")
+
+    x = Variable(np.array([1, 2, 3]))
+    y = Variable(np.array([6]))
+
+    z = x + y
+    assert np.allclose(z.data, np.array([7, 8, 9])), "Broadcast add failed"
+
+    z.backward()
+    assert np.allclose(x.grad, np.array([1, 1, 1])), "Broadcast backward x failed"
+    assert np.allclose(y.grad, np.array([3])), "Broadcast backward y failed"
+
+
+def test_matmul():
+    print("\nTest MatMul")
+
+    x = Variable(np.array([[1, 2], [3, 4]]))
+    W = Variable(np.array([[5, 6], [7, 8]]))
+
+    y = F.matmul(x, W)
+    y.backward()
+
+    assert np.allclose(y.data, np.array([[19, 22], [43, 50]])), "MatMul function failed"
+    assert np.allclose(x.grad, np.array([[11, 15], [11, 15]])), "MatMul backward x failed"
+    assert np.allclose(W.grad, np.array([[4, 4], [6, 6]])), "MatMul backward W failed"

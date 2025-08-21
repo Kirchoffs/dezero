@@ -7,11 +7,11 @@ if "__file__" in globals():
 
 import numpy as np
 from dezero import Variable
-from dezero import sin
+import dezero.functions as F
 
 
 x = Variable(np.array(np.pi / 4))
-y = sin(x)
+y = F.sin(x)
 y.backward(create_graph = True)
 
 for i in range(3):

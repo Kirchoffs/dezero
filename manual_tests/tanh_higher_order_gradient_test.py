@@ -6,13 +6,13 @@ if "__file__" in globals():
 
 
 import numpy as np
+import dezero.functions as F
 from dezero import Variable
 from dezero import plot_dot_graph
-from dezero import tanh
 
 
 x = Variable(np.array(np.pi / 4))
-y = tanh(x)
+y = F.tanh(x)
 x.name = "x"
 y.name = "y"
 y.backward(create_graph = True)

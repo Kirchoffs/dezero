@@ -1,7 +1,6 @@
 import numpy as np
 
-from dezero import add, exp, square
-from dezero import numerical_derivative
+import dezero.functions as F
 from dezero import Variable
 from dezero import Exp, Square
 
@@ -27,9 +26,9 @@ def test_backpropagation_2():
     print("\nTest Backpropagation 2")
 
     x = Variable(np.array([1.0]))
-    a = square(x)
-    b = exp(a)
-    c = square(b)
+    a = F.square(x)
+    b = F.exp(a)
+    c = F.square(b)
 
     c.grad = np.array(1.0)
     c.backward()
@@ -40,7 +39,7 @@ def test_backpropagation_3():
     print("\nTest Backpropagation 3")
 
     x = Variable(np.array([1.0]))
-    y = square(exp(square(x)))
+    y = F.square(F.exp(F.square(x)))
 
     y.grad = np.array(1.0)
     y.backward()
@@ -51,7 +50,7 @@ def test_backpropagation_4():
     print("\nTest Backpropagation 4")
 
     x = Variable(np.array([1.0]))
-    y = square(exp(square(x)))
+    y = F.square(F.exp(F.square(x)))
 
     y.backward()
     print(x.grad)
@@ -61,13 +60,13 @@ def test_backpropagation_5():
     print("\nTest Backpropagation 5")
 
     x = Variable(np.array([1.0]))
-    y = square(exp(square(x)))
+    y = F.square(F.exp(F.square(x)))
 
     y.backward()
     print(x.grad)
 
-    composed_function = lambda x: square(exp(square(x)))
-    numerical_grad = numerical_derivative(composed_function, x)
+    composed_function = lambda x: F.square(F.exp(F.square(x)))
+    numerical_grad = F.numerical_derivative(composed_function, x)
     assert np.allclose(x.grad, numerical_grad), "Backpropagation gradient does not match numerical gradient"
 
 
@@ -75,8 +74,8 @@ def test_backpropagation_6():
     print("\nTest Backpropagation 6")
 
     x = Variable(np.array([2.0]))
-    a = square(x)
-    y = add(square(a), square(a))
+    a = F.square(x)
+    y = F.add(F.square(a), F.square(a))
     y.backward()
 
     print(y.data)

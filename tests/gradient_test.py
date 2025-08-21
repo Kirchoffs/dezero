@@ -1,16 +1,15 @@
 import numpy as np
 
-from dezero import add, square
-from dezero import numerical_derivative
+import dezero.functions as F
 from dezero import Variable
 
 
 def test_square_derivative():
     x = Variable(np.random.rand(1))
-    y = square(x)
+    y = F.square(x)
     y.backward()
 
-    numerical_grad = numerical_derivative(square, x)
+    numerical_grad = F.numerical_derivative(F.square, x)
     print("Numerical gradient:", numerical_grad)
     print("Backpropagation gradient:", x.grad)
     assert np.allclose(x.grad, numerical_grad), "Square derivative test failed"
@@ -18,14 +17,14 @@ def test_square_derivative():
 
 def test_add_derivative_same_variable():
     x = Variable(np.random.rand(1))
-    y = add(x, x)
+    y = F.add(x, x)
     y.backward(retain_grad = True)
 
     assert y.grad.data == 1, "Add derivative same variable test failed for y variable"
     assert x.grad.data == 2, "Add derivative same variable test failed for x variable"
 
     x.clear_grad()
-    y = add(add(x, x), x)
+    y = F.add(F.add(x, x), x)
     y.backward(retain_grad = True)
 
     assert y.grad.data == 1, "Add derivative same variable test failed for y variable"
@@ -35,8 +34,8 @@ def test_add_derivative_same_variable():
 def test_retain_grad_false():
     a = Variable(np.array([1.0]))
     b = Variable(np.array([1.0]))
-    c = add(a, b)
-    d = add(c, a)
+    c = F.add(a, b)
+    d = F.add(c, a)
     d.backward()
 
     assert d.grad is None, "Retain grad false test failed for d variable"

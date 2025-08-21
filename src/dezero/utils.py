@@ -72,3 +72,36 @@ def plot_dot_graph(output, verbose = True, to_file = "graph.png"):
 
     cmd = f"dot {dot_graph_path} -T {extension} -o {to_file}"
     subprocess.run(cmd, shell = True)
+
+
+def reshape_sum_backward_for_broadcast(gy, x_shape, axis, keepdims):
+    ndim = len(x_shape)
+    
+    tupled_axis = axis
+    if tupled_axis is not None and not isinstance(tupled_axis, tuple):
+        tupled_axis = (tupled_axis,)
+    
+    if not (ndim == 0 or tupled_axis is None or keepdims):
+        actual_axis = [axis_index if axis_index >= 0 else axis_index + ndim for axis_index in tupled_axis]
+        
+        shape = list(gy.shape)
+        for axis_index in sorted(actual_axis):
+            shape.insert(axis_index, 1)
+    else:
+        shape = gy.shape
+
+    return gy.reshape(shape)
+
+
+def sum_to_shape(x, shape):
+    ndim = len(shape)
+    
+    lead = x.ndim - ndim
+    lead_axis = tuple(range(lead))
+    axis = tuple([i + lead for i, sx in enumerate(shape) if sx == 1])
+    
+    y = x.sum(axis = lead_axis + axis, keepdims = True)
+    if lead > 0:
+        y = y.squeeze(lead_axis)
+    
+    return y
