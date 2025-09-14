@@ -10,11 +10,17 @@
 >> pytest
 >> pytest tests/function_test.py
 >> pytest tests/function_test.py::test_add
+>> pytest tests/function_test.py::test_add --trace
 ```
 
 Run tests with output
 ```
 >> pytest -s
+```
+
+Single step debugging
+```
+>> pytest --trace
 ```
 
 ## Miscellaneous Notes
@@ -24,14 +30,14 @@ Run tests with output
 x = np.array([3.14]) # One-dimensional array
 y = x ** 2
 print(type(x), x.ndim)
-print(type(y)) # numpy.ndarray
+print(type(y)) # 'numpy.ndarray'
 ```
 
 ```python
 x = np.array(3.14)   # Zero-dimensional array
 y = x ** 2
 print(type(x), x.ndim)
-print(type(y)) # numpy.float64
+print(type(y)) # 'numpy.float64'
 ```
 
 ### Python Debugging
